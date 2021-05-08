@@ -1,16 +1,17 @@
 import { PureComponent } from 'react'
-import { sortBy } from 'lodash'
+import { sortBy, find } from 'lodash'
 
 import CropSelect from './CropSelect'
-import { Crop, Field, SeasonalCrop } from './types'
-import { fetchCrops, fetchFields } from './api'
+import { Crop, Field, SeasonalCrop, HumusBalanceData } from './types'
+import { fetchCrops, fetchFields, calculateHumusBalance } from './api'
 import buildNewFieldsState from './buildNewFieldsState'
 
 type Props = {}
 
 type State = {
   allCrops: Array<Crop>,
-  fields: Array<Field>
+  fields: Array<Field>,
+  humusBalance: Array<HumusBalanceData>
 }
 
 export default class Table extends PureComponent<Props, State> {
@@ -20,6 +21,7 @@ export default class Table extends PureComponent<Props, State> {
     this.state = {
       allCrops: [],
       fields: [],
+      humusBalance: [],
     }
   }
 
@@ -28,6 +30,15 @@ export default class Table extends PureComponent<Props, State> {
       fields: await fetchFields(),
       allCrops: await fetchCrops(),
     })
+
+  async componentDidUpdate(_prevProps: Props, prevState: State) {
+    if (prevState.fields !== this.state.fields) {
+      let humusBalance = await calculateHumusBalance(this.state.fields)
+      // A hack to match the fields order
+      let sorted = sortBy(humusBalance, e => e.field_name)
+      this.setState({humusBalance: sorted})
+    }
+  }
 
   render = () =>
     <div className="table">
@@ -52,7 +63,9 @@ export default class Table extends PureComponent<Props, State> {
 
       {sortBy(field.crops, crop => crop.year).map(seasonalCrop => this.renderCropCell(field, seasonalCrop))}
 
-      <div className="table__cell table__cell--right">--</div>
+      <div className="table__cell table__cell--right">
+        {find(this.state.humusBalance, b => b.field_id === field.id)?.humus_balance}
+      </div>
     </div>
 
   renderCropCell = (field: Field, seasonalCrop: SeasonalCrop) =>
